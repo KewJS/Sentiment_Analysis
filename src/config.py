@@ -27,16 +27,19 @@ class Config(object):
         REVIEWS_ABT_TRAIN           = "reviews_abt_train",
         REVIEWS_ABT_TEST            = "reviews_abt_test",
         
-        TRAIN_ABT                   = "train_reviews",
-        TEST_ABT                    = "test_reviews",
-        VAL_ABT                     = "val_reviews",
+        X_TRAIN = "x_train_reviews",
+        X_TEST  = "x_test_reviews",
+        X_VAL   = "x_val_reviews",
+        Y_TRAIN = "y_train_sentiments",
+        Y_TEST  = "y_test_sentiments",
+        Y_VAL   = "y_val_sentiments",
         
     )
     
     CRAWLER_CONFIG = dict(
         URL         = "https://www.goodreads.com/book/show", # "https://www.readings.com.au/reviews"
-        LOWER_LIMIT = 14500, # 1
-        UPPER_LIMIT = 16000, # goodreads=4532, readings max=550
+        LOWER_LIMIT = 18000, # 1
+        UPPER_LIMIT = 21000, # goodreads=4532, readings max=550
     )
     
     ANALYSIS_CONFIG = dict(
@@ -49,12 +52,19 @@ class Config(object):
     
     MODELLING_CONFIG = dict(
         RANDOM_SEED             = 42,
+        EARLY_STOPPING_ROUND    = 5,
         TEST_SPLIT_RATIO        = 0.2,
-        VALIDATE_SPLIT_RATIO    = 0.5,
-        PRE_TRAINED_MODEL_NAME  = "bert-base-cased",
-        MAX_LEN                 = 512,
+        VALIDATE_SPLIT_RATIO    = 0.2,
+        TUNING_CV_METRICS       = "f1",
+        TUNING_CV_SPLIT         = 5,
+        METRIC_BEST             = "F1_SCORE",
+        METRIC_BEST_THRESHOLD   = 0.4,
+        
+        PRE_TRAINED_MODEL_NAME  = "distilbert-base-uncased", # distilbert-base-uncased, bert-base-cased
+        MAX_LEN                 = 160,
         MAX_LEN_TRUNCATION      = True,
         BATCH_SIZE              = 16,
+        CLASS_NAMES             = ["negative", "neutral", "positive"],
     )
     
     

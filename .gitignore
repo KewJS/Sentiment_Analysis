@@ -2,6 +2,10 @@
 pytorch-sentiment-analysis-master/
 sentiment_venv/
 data/
+docs/
+cache/
+imdb_data/
+.vector_cache/
 
 # Settings
 # .vscode/
