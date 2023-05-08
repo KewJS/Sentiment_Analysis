@@ -99,9 +99,9 @@ class Model(Config):
     
     def evaluate(self, y_test, y_pred):
         acc = accuracy_score(y_test, y_pred)
-        prec = precision_score(y_test, y_pred, average=None)
-        recall = recall_score(y_test, y_pred, average=None)
-        f1 = f1_score(y_test, y_pred, average=None)
+        prec = precision_score(y_test, y_pred)
+        recall = recall_score(y_test, y_pred,)
+        f1 = f1_score(y_test, y_pred)
         cm = confusion_matrix(y_test, y_pred)
 
         metrics = dict(ACCURACY=acc, PRECISION=prec, RECALL=recall, F1_SCORE=f1, CM=cm)

@@ -26,7 +26,14 @@ from transformers import BertTokenizer
 import torch
 from torch import nn, optim
 from torch.utils.data import Dataset, DataLoader
-from transformers import BertTokenizer, BertModel, AdamW, get_linear_schedule_with_warmup, DistilBertModel, DistilBertTokenizer
+from transformers import (
+    BertTokenizer, 
+    BertModel,
+    DistilBertTokenizer,
+    DistilBertModel, 
+    AdamW, 
+    get_linear_schedule_with_warmup
+)
 
 from src.config import Config
 from src.train.ensemble import Model
@@ -109,8 +116,8 @@ class Train(Config):
         self.suffix = suffix
         self.axis_limit = [1e10, 0]
         self.models = {}
-        # self.tokenizer = DistilBertTokenizer.from_pretrained(self.MODELLING_CONFIG["PRE_TRAINED_MODEL_NAME"])
-        # self.bert_model = DistilBertModel.from_pretrained(self.MODELLING_CONFIG["PRE_TRAINED_MODEL_NAME"])
+        self.tokenizer = BertTokenizer.from_pretrained(self.MODELLING_CONFIG["PRE_TRAINED_MODEL_NAME"])
+        self.model = BertModel.from_pretrained(self.MODELLING_CONFIG["PRE_TRAINED_MODEL_NAME"])
         
         self.meta = dict(
             predictives = predictives,
@@ -123,7 +130,7 @@ class Train(Config):
         )
         
     
-    def prepare_model_data(self):
+    def get_reviews_data(self):
         self.logger.info("Using Reviews Data For Model Training on Sentiment Analysis:")
         
         self.logger.info("  reading reviews data...")
@@ -135,6 +142,54 @@ class Train(Config):
         
         self.logger.info("  encode sentiments to rating...")
         self.data["reviews_abt"][self.meta["target_var"]] = self.data["reviews_abt"]["rating_encode"].apply(lambda x: self.sentiment_encoder(x))
+        
+        
+    def prepare_model_data(self, reviews_df):
+        self.logger.info("Splitting Reviews Data into Train-Test-Validation:")
+        self.logger.info("  train & test at ratio: {}...".format(self.MODELLING_CONFIG["TEST_SPLIT_RATIO"]))
+        self.data["train_df"], self.data["test_df"] = train_test_split(reviews_df, 
+                                                                       test_size=self.MODELLING_CONFIG["TEST_SPLIT_RATIO"], 
+                                                                       shuffle=True, 
+                                                                       random_state=self.MODELLING_CONFIG["RANDOM_SEED"])
+
+        self.logger.info("  train & test at ratio: {}...".format(self.MODELLING_CONFIG["VALIDATE_SPLIT_RATIO"]))
+        self.data["train_df"], self.data["val_df"] = train_test_split(self.data["train_df"], 
+                                                                      test_size=self.MODELLING_CONFIG["VALIDATE_SPLIT_RATIO"], 
+                                                                      shuffle=True, 
+                                                                      random_state=self.MODELLING_CONFIG["RANDOM_SEED"])
+        
+        self.logger.info("  build pytorch train data loader...")
+        self.train_data_loader = self.create_data_loader(df=self.data["train_df"], 
+                                                         tokenizer=self.tokenizer, 
+                                                         max_len=self.MODELLING_CONFIG["MAX_LEN"],
+                                                         batch_size=self.MODELLING_CONFIG["BATCH_SIZE"])
+        
+        self.logger.info("  build pytorch test data loader...")
+        self.test_data_loader = self.create_data_loader(df=self.data["test_df"], 
+                                                        tokenizer=self.tokenizer, 
+                                                        max_len=self.MODELLING_CONFIG["MAX_LEN"],
+                                                        batch_size=self.MODELLING_CONFIG["BATCH_SIZE"])
+        
+        self.logger.info("  build pytorch validation data loader...")
+        self.val_data_loader = self.create_data_loader(df=self.data["val_df"], 
+                                                       tokenizer=self.tokenizer, 
+                                                       max_len=self.MODELLING_CONFIG["MAX_LEN"],
+                                                       batch_size=self.MODELLING_CONFIG["BATCH_SIZE"])
+        
+        
+    def create_data_loader(self, df, tokenizer, max_len, batch_size):
+        ds = ReviewDataset(
+            reviews=df["reviews"].to_numpy(), 
+            targets=df["sentiment"].to_numpy(), 
+            tokenizer=tokenizer, 
+            max_len=max_len
+            )
+        
+        return DataLoader(
+            ds,
+            batch_size=batch_size,
+            num_workers=4
+        )
         
         
     def run(self, data, algorithms=["LGBMC"]):
@@ -150,7 +205,7 @@ class Train(Config):
         self.logger.info("Complete training in {}.".format(self.meta["runtime"]))
         
         
-    def classification(self, data, algorithms):
+    def ensemble_classification(self, data, algorithms):
         self.logger.info("Extract Features from {} Data:".format(self.meta["predictives"]))
         self.logger.info("  create text features from TF-IDF vectorizer...")
         self.tfidf_vector = TfidfVectorizer(tokenizer=self.preprocess)
@@ -240,10 +295,6 @@ class Train(Config):
         return X_train, X_test, X_val, y_train, y_test, y_val
         
         
-    def create_data_loader(self, df, tokenizer, max_len, batch_size):
-        ds = ReviewDataset(reviews=df[self.meta["predictives"]].to_numpy(), targets=df[self.meta["target_var"]].to_numpy(), tokenizer=tokenizer, max_len=max_len)
-
-        return DataLoader(ds, batch_size=batch_size, num_workers=4)
     
     
     # # Visualization
@@ -324,6 +375,29 @@ class Train(Config):
         with open(fname, "wb") as handle:
             pickle.dump(training, handle, protocol=pickle.HIGHEST_PROTOCOL)            
             self.logger.info("  training and its models saved to file '{}'.".format(fname))
+            
+    
+    # # Visualization
+    def vertical_bar_plot(self, df, xvar, yvar, hue, title=None):
+        fig, ax = plt.subplots(figsize=(7,4))
+        sns.barplot(data=df, x=xvar, y=yvar, hue=hue, ax=ax)
+        ax.set_title(title, fontsize=12, weight="bold")
+        ax.set_xlabel(xvar, fontsize=10)
+        ax.set_ylabel(yvar, fontsize=10)
+        
+        for i in ax.containers:
+            ax.bar_label(i, fontsize=8)
+        
+        return fig
+    
+    
+    def tokens_lens_plot(self, xvar, title=None):
+        fig, ax = plt.subplots(figsize=(10,4))
+        sns.distplot(x=xvar, ax=ax)
+        ax.set_title(title, fontsize=12, weight="bold")
+        ax.set_ylabel("Density", fontsize=10)
+        
+        return fig
     
     
 class ReviewDataset(Dataset):
@@ -332,24 +406,29 @@ class ReviewDataset(Dataset):
         self.targets = targets
         self.tokenizer = tokenizer
         self.max_len = max_len
-    
-    
+        
+        
     def __len__(self):
         return len(self.reviews)
+  
+    def __getitem__(self, item):
+        review = str(self.reviews[item])
+        target = self.targets[item]
     
     
     def __getitem__(self, item):
         review = str(self.reviews[item])
         target = self.targets[item]
-
-        encoding = self.tokenizer.encode_plus(review,
-                                              add_special_tokens=True,
-                                              max_length=self.max_len,
-                                              return_token_type_ids=False,
-                                              pad_to_max_length=True,
-                                              return_attention_mask=True,
-                                              return_tensors="pt",
-                                              )
+        
+        encoding = self.tokenizer.encode_plus(
+            review,
+            add_special_tokens=True,
+            max_length=self.max_len,
+            return_token_type_ids=False,
+            pad_to_max_length=True,
+            return_attention_mask=True,
+            return_tensors="pt",
+            )
 
         return {
             "review_text": review,
