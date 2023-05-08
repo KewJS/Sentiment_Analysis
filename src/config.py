@@ -60,10 +60,10 @@ class Config(object):
         METRIC_BEST             = "F1_SCORE",
         METRIC_BEST_THRESHOLD   = 0.4,
         
-        PRE_TRAINED_MODEL_NAME  = "distilbert-base-uncased", # distilbert-base-uncased, bert-base-cased
-        MAX_LEN                 = 160,
+        PRE_TRAINED_MODEL_NAME  = "bert-base-uncased", # distilbert-base-uncased, bert-base-cased
+        MAX_LEN                 = 256,
         MAX_LEN_TRUNCATION      = True,
-        BATCH_SIZE              = 16,
+        BATCH_SIZE              = 8,
         CLASS_NAMES             = ["negative", "neutral", "positive"],
     )
     
